@@ -1,36 +1,75 @@
-CREATE SCHEMA IF NOT EXISTS LINKEDIN.GOLD;
+CREATE SCHEMA IF NOT EXISTS LINKEDIN.SILVER;
  
--- Table de référence taille entreprise
-CREATE OR REPLACE TABLE LINKEDIN.GOLD.DIM_COMPANY_SIZE AS
-SELECT column1 AS size_code, column2 AS size_label
-FROM VALUES
-    (0,'Self-employed'),(1,'1-10 employés'),(2,'11-50 employés'),
-    (3,'51-200 employés'),(4,'201-500 employés'),(5,'501-1 000 employés'),
-    (6,'1 001-5 000 employés'),(7,'5 001+ employés');
- 
--- Table centrale des offres enrichies
-CREATE OR REPLACE TABLE LINKEDIN.GOLD.FACT_JOB_POSTINGS AS
+-- JOB_POSTINGS typée
+CREATE OR REPLACE TABLE LINKEDIN.SILVER.JOB_POSTINGS AS
 SELECT
-    jp.job_id, jp.title, jp.company_name, jp.formatted_work_type,
-    jp.location, jp.min_salary, jp.med_salary, jp.max_salary,
-    jp.pay_period, jp.formatted_experience_level, jp.remote_allowed,
-    jp.listed_time,
-    c.company_id, c.company_size,
-    NVL(cs.size_label, 'Inconnu') AS company_size_label,
-    c.country, c.city
-FROM LINKEDIN.SILVER.JOB_POSTINGS jp
-LEFT JOIN LINKEDIN.SILVER.COMPANIES c
-    ON UPPER(jp.company_name) = UPPER(c.company_name)
-LEFT JOIN LINKEDIN.GOLD.DIM_COMPANY_SIZE cs
-    ON c.company_size = cs.size_code;
-SELECT COUNT(*) FROM LINKEDIN.GOLD.FACT_JOB_POSTINGS;
+    job_id::INT AS job_id, company_name, title, description,
+    TRY_TO_DOUBLE(max_salary) AS max_salary,
+    TRY_TO_DOUBLE(med_salary) AS med_salary,
+    TRY_TO_DOUBLE(min_salary) AS min_salary,
+    pay_period, formatted_work_type, location,
+    TRY_TO_NUMBER(applies) AS applies,
+    TRY_TO_TIMESTAMP(original_listed_time::FLOAT) AS original_listed_time,
+    CASE WHEN UPPER(remote_allowed) IN ('1','TRUE','YES') THEN TRUE ELSE FALSE END AS remote_allowed,
+    TRY_TO_NUMBER(views) AS views,
+    job_posting_url, application_url, application_type,
+    TRY_TO_TIMESTAMP(expiry::FLOAT) AS expiry,
+    TRY_TO_TIMESTAMP(closed_time::FLOAT) AS closed_time,
+    formatted_experience_level, skills_desc,
+    TRY_TO_TIMESTAMP(listed_time::FLOAT) AS listed_time,
+    posting_domain,
+    CASE WHEN UPPER(sponsored) IN ('1','TRUE','YES') THEN TRUE ELSE FALSE END AS sponsored,
+    work_type, currency, compensation_type
+FROM LINKEDIN.BRONZE.JOB_POSTINGS;
+SELECT COUNT(*) FROM LINKEDIN.SILVER.JOB_POSTINGS;
  
--- Vue offres + industrie
-CREATE OR REPLACE VIEW LINKEDIN.GOLD.FACT_JOB_INDUSTRY AS
+-- COMPANIES depuis JSON
+CREATE OR REPLACE TABLE LINKEDIN.SILVER.COMPANIES AS
 SELECT
-    jp.job_id, jp.title, jp.company_name, jp.formatted_work_type,
-    jp.max_salary, jp.med_salary, jp.min_salary, jp.pay_period,
-    ci.industry
-FROM LINKEDIN.SILVER.JOB_POSTINGS jp
-LEFT JOIN LINKEDIN.SILVER.JOB_INDUSTRIES ji ON jp.job_id = ji.job_id
-LEFT JOIN LINKEDIN.SILVER.COMPANY_INDUSTRIES ci ON ji.industry_id = ci.company_id;
+    data:company_id::INT AS company_id,
+    data:name::STRING AS company_name,
+    data:description::STRING AS description,
+    data:company_size::INT AS company_size,
+    data:state::STRING AS state,
+    data:country::STRING AS country,
+    data:city::STRING AS city,
+    data:zip_code::STRING AS zip_code,
+    data:address::STRING AS address,
+    data:url::STRING AS url
+FROM LINKEDIN.BRONZE.COMPANIES;
+ 
+-- EMPLOYEE_COUNTS
+CREATE OR REPLACE TABLE LINKEDIN.SILVER.EMPLOYEE_COUNTS AS
+SELECT
+    company_id::INT AS company_id,
+    TRY_TO_NUMBER(employee_count) AS employee_count,
+    TRY_TO_NUMBER(follower_count) AS follower_count,
+    TO_TIMESTAMP(TRY_TO_NUMBER(time_recorded)) AS time_recorded
+FROM LINKEDIN.BRONZE.EMPLOYEE_COUNTS;
+ 
+-- JOB_INDUSTRIES
+CREATE OR REPLACE TABLE LINKEDIN.SILVER.JOB_INDUSTRIES AS
+SELECT
+    data:job_id::INT AS job_id,
+    data:industry_id::INT AS industry_id
+FROM LINKEDIN.BRONZE.JOB_INDUSTRIES;
+ 
+-- COMPANY_INDUSTRIES
+CREATE OR REPLACE TABLE LINKEDIN.SILVER.COMPANY_INDUSTRIES AS
+SELECT
+    data:company_id::INT AS company_id,
+    data:industry::STRING AS industry
+FROM LINKEDIN.BRONZE.COMPANY_INDUSTRIES;
+ 
+-- JOB_SKILLS
+CREATE OR REPLACE TABLE LINKEDIN.SILVER.JOB_SKILLS AS
+SELECT job_id::INT AS job_id, skill_abr
+FROM LINKEDIN.BRONZE.JOB_SKILLS;
+ 
+-- BENEFITS
+CREATE OR REPLACE TABLE LINKEDIN.SILVER.BENEFITS AS
+SELECT
+    job_id::INT AS job_id,
+    CASE WHEN UPPER(inferred) IN ('1','TRUE') THEN TRUE ELSE FALSE END AS inferred,
+    type AS benefit_type
+FROM LINKEDIN.BRONZE.BENEFITS;
