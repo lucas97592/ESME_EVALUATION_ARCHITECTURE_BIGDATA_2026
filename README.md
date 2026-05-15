@@ -4,24 +4,7 @@
 
 ---
 
-## Sommaire
-
-- [Objectif](#objectif)
-- [Technologies](#technologies)
-- [Architecture](#architecture)
-- [Structure du projet](#structure-du-projet)
-- [Étapes du pipeline](#étapes-du-pipeline)
-  - [1. Initialisation](#1-initialisation)
-  - [2. Couche Bronze](#2-couche-bronze)
-  - [3. Couche Silver](#3-couche-silver)
-  - [4. Couche Gold](#4-couche-gold)
-  - [5. Analyses SQL](#5-analyses-sql)
-  - [6. Applications Streamlit](#6-applications-streamlit)
-- [Résultats](#résultats)
-- [Difficultés rencontrées](#difficultés-rencontrées)
-- [Reset du projet](#reset-du-projet)
-
----
+## Objectif
 
 ## Objectif
 
@@ -268,3 +251,35 @@ DROP DATABASE IF EXISTS LINKEDIN;
 ## Conclusion
 
 Ce projet implémente un pipeline Big Data complet sur Snowflake, de l'ingestion brute jusqu'à la visualisation finale, en respectant l'architecture médaillon Bronze / Silver / Gold et un suivi collaboratif via GitHub.
+
+---
+
+# Captures des applications Streamlit
+
+## Top 10 titres par industrie
+
+![Top titres](images/app1.png)
+
+---
+
+## Top 10 salaires par industrie
+
+![Top salaires](images/app2.png)
+
+---
+
+## Offres par taille d'entreprise
+
+![Taille entreprise](images/app3.png)
+
+---
+
+## Offres par secteur d'activité
+
+![Secteurs](images/app4.png)
+
+---
+
+## Offres par type d'emploi
+
+![Type emploi](images/app5.png)
