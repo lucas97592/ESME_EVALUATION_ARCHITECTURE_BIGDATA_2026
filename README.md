@@ -1,244 +1,270 @@
-# ESME_EVALUATION_ARCHITECTURE_BIGDATA_2026
+# ESME — Architecture Big Data avec Snowflake
 
-## Objectif du projet
+> Analyse des offres d'emploi LinkedIn via une architecture Bronze / Silver / Gold sur Snowflake, avec visualisations Streamlit.
 
-Ce projet a pour objectif de mettre en place une architecture Big Data avec Snowflake à partir d’un dataset LinkedIn contenant :
+---
 
-- des offres d’emploi
+## Sommaire
+
+- [Objectif](#objectif)
+- [Technologies](#technologies)
+- [Architecture](#architecture)
+- [Structure du projet](#structure-du-projet)
+- [Étapes du pipeline](#étapes-du-pipeline)
+  - [1. Initialisation](#1-initialisation)
+  - [2. Couche Bronze](#2-couche-bronze)
+  - [3. Couche Silver](#3-couche-silver)
+  - [4. Couche Gold](#4-couche-gold)
+  - [5. Analyses SQL](#5-analyses-sql)
+  - [6. Applications Streamlit](#6-applications-streamlit)
+- [Résultats](#résultats)
+- [Difficultés rencontrées](#difficultés-rencontrées)
+- [Reset du projet](#reset-du-projet)
+
+---
+
+## Objectif
+
+Ce projet met en place une architecture Big Data complète sur **Snowflake** à partir d'un dataset LinkedIn contenant :
+
+- des offres d'emploi
 - des entreprises
 - des industries
 - des salaires
 - des compétences
 
-Le projet suit une architecture :
-
-- Bronze : ingestion des données brutes
-- Silver : nettoyage et transformation
-- Gold : modélisation analytique
-
-Les résultats sont ensuite exploités avec des analyses SQL et des applications Streamlit.
+Les données sont ingérées, transformées, modélisées puis visualisées via des applications **Streamlit** interactives.
 
 ---
 
-# Technologies utilisées
+## Technologies
 
-- Snowflake
-- SQL
-- Python
-- Streamlit
-- Git / GitHub
+| Technologie | Usage |
+|---|---|
+| Snowflake | Stockage, transformation et requêtage des données |
+| SQL | Pipeline de données et analyses |
+| Python | Développement des applications Streamlit |
+| Streamlit | Visualisation interactive |
+| Git / GitHub | Versioning et collaboration |
 
 ---
 
-# Structure du projet
+## Architecture
 
-```text
-sql/
-├── 01_setup.sql
-├── 02_bronze.sql
-├── 03_silver.sql
-├── 04_gold.sql
-├── 05_analyses.sql
-└── 06_reset.sql
+```
+[Dataset LinkedIn]
+        |
+        v
+  [ BRONZE ]  →  Ingestion des données brutes (CSV / JSON)
+        |
+        v
+  [ SILVER ]  →  Nettoyage, typage, transformations
+        |
+        v
+  [  GOLD  ]  →  Tables analytiques (dimensions + faits)
+        |
+        v
+  [Streamlit]  →  Visualisations interactives
+```
 
-streamlit/
-├── app1_top_titles.py
-├── app2_top_salaries.py
-├── app3_company_size.py
-├── app4_industry.py
-└── app5_work_type.py
+---
 
-1. Initialisation Snowflake
+## Structure du projet
 
-Le fichier 01_setup.sql permet :
+```
+.
+├── sql/
+│   ├── 01_setup.sql       # Initialisation Snowflake (base, schéma, stage S3)
+│   ├── 02_bronze.sql      # Chargement des données brutes
+│   ├── 03_silver.sql      # Nettoyage et transformation
+│   ├── 04_gold.sql        # Modélisation analytique
+│   ├── 05_analyses.sql    # Requêtes d'analyse
+│   └── 06_reset.sql       # Suppression de la base
+│
+└── streamlit/
+    ├── app1_top_titles.py     # Top 10 titres par industrie
+    ├── app2_top_salaries.py   # Top 10 salaires par industrie
+    ├── app3_company_size.py   # Répartition par taille d'entreprise
+    ├── app4_industry.py       # Répartition par secteur d'activité
+    └── app5_work_type.py      # Répartition par type d'emploi
+```
 
-* la création de la base LINKEDIN
-* la création du schéma Bronze
-* la connexion au bucket S3
-* la configuration des formats CSV et JSON
+---
 
-Exemple de commandes SQL
+## Étapes du pipeline
 
+### 1. Initialisation
+
+Le fichier `01_setup.sql` crée la base de données, le schéma Bronze, le stage S3 et les formats de fichiers.
+
+```sql
 CREATE DATABASE IF NOT EXISTS LINKEDIN;
 
 CREATE SCHEMA IF NOT EXISTS LINKEDIN.BRONZE;
 
 CREATE OR REPLACE STAGE LINKEDIN.BRONZE.linkedin_stage
-URL = 's3://snowflake-lab-bucket/';
+  URL = 's3://snowflake-lab-bucket/';
+```
 
-2. Couche Bronze
+> Avant toute exécution, s'assurer qu'un warehouse est actif :
+> ```sql
+> USE WAREHOUSE COMPUTE_WH;
+> ```
 
-Le fichier 02_bronze.sql permet le chargement des données brutes CSV et JSON dans Snowflake.
+---
 
-Exemple
+### 2. Couche Bronze
 
+Le fichier `02_bronze.sql` charge les données brutes CSV et JSON dans Snowflake sans transformation.
+
+```sql
 COPY INTO LINKEDIN.BRONZE.JOB_POSTINGS
 FROM @linkedin_stage/job_postings.csv
 FILE_FORMAT = (FORMAT_NAME = 'LINKEDIN.BRONZE.csv_format');
-Les données sont conservées dans leur format d’origine.
+```
 
-⸻
+Les données sont conservées dans leur format d'origine pour garantir la traçabilité.
 
-3. Couche Silver
+---
 
-Le fichier 03_silver.sql transforme les données Bronze en données propres et typées.
+### 3. Couche Silver
 
-Transformations réalisées
+Le fichier `03_silver.sql` transforme les données Bronze : typage, nettoyage, normalisation.
 
-* conversion des salaires en DOUBLE
-* conversion des dates en TIMESTAMP
-* conversion des booléens TRUE/FALSE
+**Transformations appliquées :**
 
-Exemple
-TRY_TO_DOUBLE(max_salary) AS max_salary
-CASE WHEN UPPER(remote_allowed)
-IN ('1','TRUE','YES')
-THEN TRUE ELSE FALSE END
+- Conversion des salaires en `DOUBLE`
+- Conversion des dates en `TIMESTAMP`
+- Normalisation des booléens
 
-4. Couche Gold
+```sql
+TRY_TO_DOUBLE(max_salary) AS max_salary,
 
-Le fichier 04_gold.sql crée les tables analytiques finales.
+CASE
+  WHEN UPPER(remote_allowed) IN ('1', 'TRUE', 'YES') THEN TRUE
+  ELSE FALSE
+END AS remote_allowed
+```
 
-Tables principales
+---
 
-* DIM_COMPANY_SIZE
-* FACT_JOB_POSTINGS
-* FACT_JOB_INDUSTRY
+### 4. Couche Gold
 
-Ces tables permettent de simplifier les analyses et les visualisations.
+Le fichier `04_gold.sql` construit les tables analytiques finales.
 
-⸻
+**Tables créées :**
 
-5. Analyses SQL
+| Table | Type | Description |
+|---|---|---|
+| `DIM_COMPANY_SIZE` | Dimension | Catégories de taille d'entreprise |
+| `FACT_JOB_POSTINGS` | Fait | Offres d'emploi enrichies |
+| `FACT_JOB_INDUSTRY` | Fait | Croisement offres / industries |
 
-Le fichier 05_analyses.sql contient plusieurs analyses :
+---
 
-1. Top 10 titres par industrie
-2. Top 10 salaires par industrie
-3. Répartition par taille d’entreprise
-4. Répartition par secteur
-5. Répartition par type d’emploi
+### 5. Analyses SQL
 
-Exemple d’analyse
+Le fichier `05_analyses.sql` contient cinq analyses principales :
+
+1. Top 10 des titres de poste par industrie
+2. Top 10 des salaires par industrie
+3. Répartition des offres par taille d'entreprise
+4. Répartition des offres par secteur d'activité
+5. Répartition des offres par type d'emploi
+
+```sql
 SELECT industry, title, COUNT(*) AS nb_offres
 FROM LINKEDIN.GOLD.FACT_JOB_INDUSTRY
-GROUP BY industry, title;
+GROUP BY industry, title
+ORDER BY nb_offres DESC
+LIMIT 10;
+```
 
-6. Applications Streamlit
+---
 
-Les visualisations ont été réalisées avec Streamlit.
+### 6. Applications Streamlit
 
-Applications développées
+Cinq applications interactives ont été développées avec Streamlit.
 
-* app1_top_titles.py
-* app2_top_salaries.py
-* app3_company_size.py
-* app4_industry.py
-* app5_work_type.py
+| Fichier | Visualisation |
+|---|---|
+| `app1_top_titles.py` | Top 10 des titres par industrie |
+| `app2_top_salaries.py` | Top 10 des salaires par industrie |
+| `app3_company_size.py` | Répartition par taille d'entreprise |
+| `app4_industry.py` | Répartition par secteur d'activité |
+| `app5_work_type.py` | Répartition par type d'emploi |
 
-Fonctionnalités
+**Fonctionnalités communes :**
 
-* sélection dynamique des secteurs
-* graphiques interactifs
-* tableaux récapitulatifs
+- Sélection dynamique du secteur via menu déroulant
+- Graphiques interactifs (barres, camemberts)
+- Tableaux récapitulatifs
 
-⸻
+---
 
-7. Résultats obtenus
+## Résultats
 
-Secteurs les plus représentés
+**Secteurs les plus représentés**
 
-* Staffing & Recruiting
-* Information Technology
-* Retail
-* Health Care
+- Staffing & Recruiting
+- Information Technology
+- Retail
+- Health Care
 
-Types d’emploi dominants
+**Types d'emploi dominants**
 
-* Full-time
-* Contract
-* Internship
+- Full-time
+- Contract
+- Internship
 
-Postes les plus fréquents
+**Postes les plus fréquents**
 
-* Sales Director
-* Project Manager
-* Staff Accountant
+- Sales Director
+- Project Manager
+- Staff Accountant
 
-⸻
+---
 
-8. Difficultés rencontrées
+## Difficultés rencontrées
 
-Warehouse non sélectionné
+**Warehouse non sélectionné**
 
-Erreur :
+```
 No active warehouse selected
-Solution
-USE WAREHOUSE COMPUTE_WH;
-Synchronisation Snowflake / GitHub
+```
 
-Le code exécuté dans Snowflake n’est pas automatiquement enregistré dans GitHub.
+Solution : ajouter `USE WAREHOUSE COMPUTE_WH;` en début de session.
 
-Solution
+---
 
-Sauvegarder les fichiers localement puis utiliser :
+**Synchronisation Snowflake / GitHub**
 
-git add
-git commit
+Le code exécuté dans l'interface Snowflake n'est pas automatiquement versionné. Il faut sauvegarder les fichiers localement puis les pousser manuellement :
+
+```bash
+git add .
+git commit -m "feat: mise à jour du pipeline silver"
 git push
-Streamlit Snowflake
+```
 
-Certaines applications Streamlit ont rencontré des problèmes de lancement liés aux services Snowflake.
+---
 
-Solution
+**Lancement des applications Streamlit**
 
-Conserver les fichiers Python correctement structurés dans le dépôt GitHub.
+Certaines applications ont rencontré des problèmes de connexion liés aux services Snowflake. Solution : vérifier que les fichiers Python sont correctement structurés et que les credentials Snowflake sont bien configurés dans l'environnement.
 
-⸻
+---
 
-9. Reset du projet
+## Reset du projet
 
-Le fichier 06_reset.sql permet de supprimer la base :
+Pour supprimer l'intégralité de la base de données :
+
+```sql
 DROP DATABASE IF EXISTS LINKEDIN;
-
-Conclusion
-
-Ce projet démontre la mise en place complète d’une architecture Big Data sur Snowflake :
-
-* ingestion
-* transformation
-* modélisation
-* analyses
-* visualisation
-
-Le projet respecte une architecture Bronze / Silver / Gold avec un suivi collaboratif via GitHub.
-
-# Captures des applications Streamlit
-
-## Top 10 titres par industrie
-
-![Top titres](app1.png)
+```
 
 ---
 
-## Top 10 salaires par industrie
+## Conclusion
 
-![Top salaires](app2.png)
-
----
-
-## Offres par taille d’entreprise
-
-![Taille entreprise](app3.png)
-
----
-
-## Offres par secteur d’activité
-
-![Secteurs](app4.png)
-
----
-
-## Offres par type d’emploi
-
-![Type emploi](app5.png)
+Ce projet implémente un pipeline Big Data complet sur Snowflake, de l'ingestion brute jusqu'à la visualisation finale, en respectant l'architecture médaillon Bronze / Silver / Gold et un suivi collaboratif via GitHub.
