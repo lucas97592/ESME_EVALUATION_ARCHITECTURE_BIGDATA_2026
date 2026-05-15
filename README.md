@@ -212,3 +212,33 @@ Ce projet démontre la mise en place complète d’une architecture Big Data sur
 * visualisation
 
 Le projet respecte une architecture Bronze / Silver / Gold avec un suivi collaboratif via GitHub.
+
+# Captures des applications Streamlit
+
+## Top 10 titres par industrie
+
+![Top titres](app1.png)
+
+---
+
+## Top 10 salaires par industrie
+
+![Top salaires](app2.png)
+
+---
+
+## Offres par taille d’entreprise
+
+![Taille entreprise](app3.png)
+
+---
+
+## Offres par secteur d’activité
+
+![Secteurs](app4.png)
+
+---
+
+## Offres par type d’emploi
+
+![Type emploi](app5.png)
